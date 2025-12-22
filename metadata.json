@@ -1,0 +1,5 @@
+{
+  "name": "FocusFlow Task Manager",
+  "description": "A minimalist productivity app featuring time-tracked task cards with progress visualization and local persistence.",
+  "requestFramePermissions": []
+}
