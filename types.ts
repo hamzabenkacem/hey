@@ -14,4 +14,5 @@ export interface Task {
   elapsedSeconds: number;
   status: TaskStatus;
   createdAt: number;
+  lastProceededAt?: number; // Timestamp for delta calculation
 }
