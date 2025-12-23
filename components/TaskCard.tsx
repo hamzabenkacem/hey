@@ -1,19 +1,23 @@
-
 import React, { useState } from 'react';
-import { Task, TaskStatus } from '../types';
+import { Task, TaskStatus, TaskMode } from '../types';
 
 interface TaskCardProps {
   task: Task;
   onToggleTimer: (id: string) => void;
+  onToggleMode: (id: string) => void;
   onComplete: (id: string) => void;
   onDelete: (id: string) => void;
   onReset: (id: string) => void;
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleTimer, onComplete, onDelete, onReset }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleTimer, onToggleMode, onComplete, onDelete, onReset }) => {
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const isCompleted = task.status === TaskStatus.COMPLETED;
   const isRunning = task.status === TaskStatus.RUNNING;
+  const isLearnMode = task.activeMode === TaskMode.LEARN;
+
+  const currentElapsed = isLearnMode ? task.learnElapsed : task.focusElapsed;
+  const currentTarget = isLearnMode ? task.learnTargetDuration : task.targetDuration;
 
   const formatTime = (seconds: number) => {
     const totalSecs = Math.floor(seconds);
@@ -41,38 +45,50 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleTimer, onComplete, on
   const HOUR_IN_SECONDS = 3600;
   const segments: { duration: number; start: number; end: number; label: string }[] = [];
 
-  let remaining = task.targetDuration;
+  let remaining = currentTarget;
   let currentStart = 0;
 
   while (remaining > 0) {
     const chunkDuration = Math.min(remaining, HOUR_IN_SECONDS);
+    const hrs = Math.floor(chunkDuration / 3600);
+    const mins = Math.floor((chunkDuration % 3600) / 60);
+    let label = `${mins}m`;
+    if (hrs > 0) label = mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+
     segments.push({
       duration: chunkDuration,
       start: currentStart,
       end: currentStart + chunkDuration,
-      label: formatSegmentLabel(chunkDuration)
+      label
     });
     currentStart += chunkDuration;
     remaining -= chunkDuration;
   }
 
   // Find current active segment
-  const currentSegmentIndex = segments.findIndex(s => task.elapsedSeconds >= s.start && task.elapsedSeconds < s.end);
-  const activeSegment = currentSegmentIndex !== -1 ? segments[currentSegmentIndex] : (task.elapsedSeconds >= task.targetDuration ? segments[segments.length - 1] : segments[0]);
+  const currentSegmentIndex = segments.findIndex(s => currentElapsed >= s.start && currentElapsed < s.end);
+  const activeSegment = currentSegmentIndex !== -1 ? segments[currentSegmentIndex] : (currentElapsed >= currentTarget ? segments[segments.length - 1] : segments[0]);
 
-  const secondsIntoActiveSegment = Math.max(0, task.elapsedSeconds - (activeSegment?.start || 0));
+  const secondsIntoActiveSegment = Math.max(0, currentElapsed - (activeSegment?.start || 0));
   const activeSegmentProgress = activeSegment ? Math.min((secondsIntoActiveSegment / activeSegment.duration) * 100, 100) : 100;
 
+  const themeColor = isLearnMode ? 'emerald' : 'indigo';
+  const themeBg = isLearnMode ? 'bg-emerald-600' : 'bg-indigo-600';
+  const themeLightBg = isLearnMode ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600';
+  const themeShadow = isLearnMode ? 'shadow-emerald-100' : 'shadow-indigo-100';
+
   return (
-    <div className={`bg-white rounded-3xl shadow-sm border border-gray-100 p-6 transition-all duration-300 ${isCompleted ? 'opacity-75 grayscale-[0.5]' : 'hover:shadow-lg hover:-translate-y-1'}`}>
-      <div className="flex justify-between items-start mb-6">
+    <div className={`bg-white rounded-3xl shadow-sm border border-gray-100 p-6 transition-all duration-300 ${isCompleted ? 'opacity-75 grayscale-[0.5]' : 'hover:shadow-lg hover:-translate-y-1'} ${isLearnMode ? 'ring-2 ring-emerald-500/20' : ''}`}>
+      <div className="flex justify-between items-start mb-4">
         <div className="flex-1 mr-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${themeLightBg}`}>
+              {isLearnMode ? 'Learning Mode' : 'Focus Mode'}
+            </span>
+          </div>
           <h3 className={`text-xl font-bold text-gray-900 leading-tight ${isCompleted ? 'line-through text-gray-400' : ''}`}>
             {task.title}
           </h3>
-          <p className="text-sm text-gray-500 mt-2 font-medium">
-            {task.description}
-          </p>
         </div>
 
         <div className="relative">
@@ -105,22 +121,40 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleTimer, onComplete, on
         </div>
       </div>
 
+      {/* Mode Swapper */}
+      {!isCompleted && (
+        <div className="flex p-1 bg-gray-50 rounded-xl mb-6">
+          <button
+            onClick={() => isLearnMode && onToggleMode(task.id)}
+            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${!isLearnMode ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            Work
+          </button>
+          <button
+            onClick={() => !isLearnMode && onToggleMode(task.id)}
+            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${isLearnMode ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            Study/Learn
+          </button>
+        </div>
+      )}
+
       <div className="space-y-6">
         {/* Time Phases Visualization */}
         <div className="space-y-3">
           <div className="flex justify-between items-end">
-            <span className="text-[11px] uppercase tracking-widest font-black text-gray-400">Time Phases</span>
-            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
-              {isCompleted ? 'All Phases Completed' : `Phase ${Math.min(currentSegmentIndex + 1, segments.length)}: ${activeSegment?.label || ''}`}
+            <span className="text-[11px] uppercase tracking-widest font-black text-gray-400">{isLearnMode ? 'Learning Phases' : 'Work Phases'}</span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${themeLightBg}`}>
+              {isCompleted ? 'Complete' : `Phase ${Math.min(currentSegmentIndex + 1, segments.length)}: ${activeSegment?.label || ''}`}
             </span>
           </div>
 
           <div className="flex gap-1.5 h-4">
             {segments.map((seg, i) => {
               let segmentFill = 0;
-              if (task.elapsedSeconds >= seg.end) segmentFill = 100;
-              else if (task.elapsedSeconds >= seg.start && task.elapsedSeconds < seg.end) {
-                segmentFill = ((task.elapsedSeconds - seg.start) / seg.duration) * 100;
+              if (currentElapsed >= seg.end) segmentFill = 100;
+              else if (currentElapsed >= seg.start && currentElapsed < seg.end) {
+                segmentFill = ((currentElapsed - seg.start) / seg.duration) * 100;
               }
 
               return (
@@ -131,53 +165,33 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleTimer, onComplete, on
                   title={`Phase ${i + 1}: ${seg.label}`}
                 >
                   <div
-                    className={`h-full transition-all duration-700 ease-out ${isCompleted ? 'bg-green-500' : 'bg-indigo-600 shadow-[0_0_8px_rgba(79,70,229,0.3)]'}`}
+                    className={`h-full transition-all duration-700 ease-out ${isCompleted ? 'bg-green-500' : themeBg + ' shadow-[0_0_8px_rgba(0,0,0,0.1)]'}`}
                     style={{ width: `${segmentFill}%` }}
                   />
                 </div>
               );
             })}
           </div>
-
-          <div className="flex justify-between text-[9px] font-black text-gray-300 px-0.5">
-            {segments.map((seg, i) => (
-              <span key={i} style={{ flex: seg.duration }} className="text-center">{seg.label}</span>
-            ))}
-          </div>
         </div>
 
-        {/* Current Active Phase Context */}
+        {/* Current Context */}
         {!isCompleted && activeSegment && (
-          <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100/50">
+          <div className={`${isLearnMode ? 'bg-emerald-50/30' : 'bg-gray-50'} rounded-2xl p-4 border border-gray-100/50`}>
             <div className="flex justify-between mb-2">
-              <span className="text-[10px] font-black uppercase text-gray-500">Active Phase: {activeSegment.label}</span>
-              <span className="text-[10px] font-bold text-indigo-700">{Math.round(activeSegmentProgress)}%</span>
+              <span className="text-[10px] font-black uppercase text-gray-500">Remaining</span>
+              <span className={`text-[10px] font-bold ${isLearnMode ? 'text-emerald-700' : 'text-indigo-700'}`}>{formatTime(Math.max(0, currentTarget - currentElapsed))}</span>
             </div>
             <div className="w-full bg-white h-2 rounded-full overflow-hidden">
               <div
-                className="h-full bg-indigo-400 transition-all duration-1000"
-                style={{ width: `${activeSegmentProgress}%` }}
+                className={`h-full transition-all duration-1000 ${isLearnMode ? 'bg-emerald-400' : 'bg-indigo-400'}`}
+                style={{ width: `${(currentElapsed / currentTarget) * 100}%` }}
               />
             </div>
-            <p className="text-[10px] text-gray-400 mt-2 font-medium flex justify-between">
-              <span>Remaining in phase:</span>
-              <span className="font-bold text-gray-600">{formatTime(Math.max(0, activeSegment.duration - secondsIntoActiveSegment))}</span>
+            <p className="text-[10px] text-gray-400 mt-2 font-medium">
+              Overall {isLearnMode ? 'Learning' : 'Focus'} Progress
             </p>
           </div>
         )}
-
-        {/* Totals */}
-        <div className="flex justify-between items-center px-2 bg-gray-50/50 py-3 rounded-2xl border border-dashed border-gray-200">
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase font-black text-gray-400">Total Elapsed</span>
-            <span className="text-sm font-mono font-bold text-gray-800">{formatTime(task.elapsedSeconds)}</span>
-          </div>
-          <div className="w-px h-6 bg-gray-200" />
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] uppercase font-black text-gray-400">Total Goal</span>
-            <span className="text-sm font-mono font-bold text-gray-800">{formatTime(task.targetDuration)}</span>
-          </div>
-        </div>
 
         {/* Action Controls */}
         <div className="flex gap-3">
@@ -186,14 +200,14 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleTimer, onComplete, on
               <button
                 onClick={() => onToggleTimer(task.id)}
                 className={`flex-[2] flex items-center justify-center gap-2 py-4 rounded-2xl font-bold transition-all shadow-md active:scale-95 ${isRunning
-                    ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                    : 'bg-gray-900 text-white hover:bg-black'
+                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  : (isLearnMode ? 'bg-emerald-600' : 'bg-gray-900') + ' text-white hover:opacity-90'
                   }`}
               >
                 {isRunning ? (
                   <><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg> Pause</>
                 ) : (
-                  <><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg> Start Session</>
+                  <><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg> Start {isLearnMode ? 'Learning' : 'Flow'}</>
                 )}
               </button>
               <button

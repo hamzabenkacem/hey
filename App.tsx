@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Task, TaskStatus } from './types';
+import { Task, TaskStatus, TaskMode } from './types';
 import TaskCard from './components/TaskCard';
 import { refineTaskDescription, suggestDuration } from './services/geminiService';
 
@@ -21,9 +21,17 @@ const App: React.FC = () => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        const hydrated = parsed.map((t: Task) =>
-          t.status === TaskStatus.RUNNING ? { ...t, status: TaskStatus.PAUSED } : t
-        );
+        const hydrated = parsed.map((t: any): Task => {
+          // Migration logic: support old format and add new fields if missing
+          return {
+            ...t,
+            status: t.status === TaskStatus.RUNNING ? TaskStatus.PAUSED : t.status,
+            activeMode: t.activeMode || TaskMode.FOCUS,
+            focusElapsed: t.focusElapsed ?? t.elapsedSeconds ?? 0,
+            learnElapsed: t.learnElapsed ?? 0,
+            learnTargetDuration: t.learnTargetDuration ?? 3600, // Default 1 hour for learning
+          };
+        });
         setTasks(hydrated);
       } catch (e) {
         console.error("Failed to parse stored tasks", e);
@@ -47,20 +55,20 @@ const App: React.FC = () => {
           if (task.status === TaskStatus.RUNNING) {
             hasChanges = true;
 
-            // If lastProceededAt is missing (hydrated from old version), set it to now
             const lastTick = task.lastProceededAt || now;
-            // Calculate delta in seconds
             const delta = (now - lastTick) / 1000;
+            if (delta < 0.1) return task;
 
-            if (delta < 0.1) return task; // Unlikely, but prevents micro-updates
+            const isFocus = task.activeMode === TaskMode.FOCUS;
+            const currentElapsed = isFocus ? task.focusElapsed : task.learnElapsed;
+            const target = isFocus ? task.targetDuration : task.learnTargetDuration;
 
-            const newElapsed = task.elapsedSeconds + delta;
+            const newElapsed = currentElapsed + delta;
 
-            // Auto-complete if target reached
-            if (newElapsed >= task.targetDuration) {
+            if (newElapsed >= target) {
               return {
                 ...task,
-                elapsedSeconds: task.targetDuration,
+                [isFocus ? 'focusElapsed' : 'learnElapsed']: target,
                 status: TaskStatus.COMPLETED,
                 lastProceededAt: undefined
               };
@@ -68,7 +76,7 @@ const App: React.FC = () => {
 
             return {
               ...task,
-              elapsedSeconds: newElapsed,
+              [isFocus ? 'focusElapsed' : 'learnElapsed']: newElapsed,
               lastProceededAt: now
             };
           }
@@ -93,7 +101,10 @@ const App: React.FC = () => {
       title: newTitle,
       description: newDesc || 'No description provided.',
       targetDuration: totalSeconds,
-      elapsedSeconds: 0,
+      focusElapsed: 0,
+      learnTargetDuration: 3600, // Default 1 hour
+      learnElapsed: 0,
+      activeMode: TaskMode.FOCUS,
       status: TaskStatus.PENDING,
       createdAt: Date.now()
     };
@@ -144,18 +155,44 @@ const App: React.FC = () => {
 
   const markComplete = (id: string) => {
     setTasks(prev => prev.map(t =>
-      t.id === id ? { ...t, status: TaskStatus.COMPLETED, elapsedSeconds: t.targetDuration } : t
+      t.id === id ? {
+        ...t,
+        status: TaskStatus.COMPLETED,
+        focusElapsed: t.activeMode === TaskMode.FOCUS ? t.targetDuration : t.focusElapsed,
+        learnElapsed: t.activeMode === TaskMode.LEARN ? t.learnTargetDuration : t.learnElapsed
+      } : t
     ));
   };
 
+  const toggleMode = (id: string) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === id) {
+        const newMode = t.activeMode === TaskMode.FOCUS ? TaskMode.LEARN : TaskMode.FOCUS;
+        // When swapping modes, we pause the timer to ensure accurate transition
+        return {
+          ...t,
+          activeMode: newMode,
+          status: TaskStatus.PAUSED,
+          lastProceededAt: undefined
+        };
+      }
+      return t;
+    }));
+  };
+
   const deleteTask = (id: string) => {
-    // Removed window.confirm which can be blocked in some browser environments
     setTasks(prev => prev.filter(t => t.id !== id));
   };
 
   const resetTask = (id: string) => {
     setTasks(prev => prev.map(t =>
-      t.id === id ? { ...t, status: TaskStatus.PENDING, elapsedSeconds: 0 } : t
+      t.id === id ? {
+        ...t,
+        status: TaskStatus.PENDING,
+        focusElapsed: 0,
+        learnElapsed: 0,
+        lastProceededAt: undefined
+      } : t
     ));
   };
 
@@ -246,6 +283,7 @@ const App: React.FC = () => {
                 key={task.id}
                 task={task}
                 onToggleTimer={toggleTimer}
+                onToggleMode={toggleMode}
                 onComplete={markComplete}
                 onDelete={deleteTask}
                 onReset={resetTask}
