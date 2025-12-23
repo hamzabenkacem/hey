@@ -187,8 +187,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleTimer, onToggleMode, 
         {!isCompleted && activeSegment && (
           <div className={`${isLearnMode ? 'bg-emerald-50/30' : 'bg-gray-50'} rounded-2xl p-4 border border-gray-100/50`}>
             <div className="flex justify-between mb-2">
-              <span className="text-[10px] font-black uppercase text-gray-500">Remaining</span>
-              <span className={`text-[10px] font-bold ${isLearnMode ? 'text-emerald-700' : 'text-indigo-700'}`}>{formatTime(Math.max(0, currentTarget - currentElapsed))}</span>
+              <span className="text-[10px] font-black uppercase text-gray-500">Phase Remaining</span>
+              <span className={`text-[10px] font-bold ${isLearnMode ? 'text-emerald-700' : 'text-indigo-700'}`}>{formatTime(Math.max(0, (activeSegment?.duration || 0) - secondsIntoActiveSegment))}</span>
             </div>
             <div className="w-full bg-white h-2 rounded-full overflow-hidden">
               <div
