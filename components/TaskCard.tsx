@@ -89,6 +89,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleTimer, onToggleMode, 
           <h3 className={`text-xl font-bold text-gray-900 leading-tight ${isCompleted ? 'line-through text-gray-400' : ''}`}>
             {task.title}
           </h3>
+          <p className="text-sm text-gray-500 mt-2 font-medium">
+            {task.description}
+          </p>
         </div>
 
         <div className="relative">
@@ -172,6 +175,12 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleTimer, onToggleMode, 
               );
             })}
           </div>
+
+          <div className="flex justify-between text-[9px] font-black text-gray-300 px-0.5">
+            {segments.map((seg, i) => (
+              <span key={i} style={{ flex: seg.duration }} className="text-center">{seg.label}</span>
+            ))}
+          </div>
         </div>
 
         {/* Current Context */}
@@ -192,6 +201,19 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleTimer, onToggleMode, 
             </p>
           </div>
         )}
+
+        {/* Totals */}
+        <div className="flex justify-between items-center px-2 bg-gray-50/50 py-3 rounded-2xl border border-dashed border-gray-200">
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase font-black text-gray-400">Total Elapsed</span>
+            <span className="text-sm font-mono font-bold text-gray-800">{formatTime(currentElapsed)}</span>
+          </div>
+          <div className="w-px h-6 bg-gray-200" />
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] uppercase font-black text-gray-400">Total Goal</span>
+            <span className="text-sm font-mono font-bold text-gray-800">{formatTime(currentTarget)}</span>
+          </div>
+        </div>
 
         {/* Action Controls */}
         <div className="flex gap-3">

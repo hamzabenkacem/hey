@@ -13,6 +13,8 @@ const App: React.FC = () => {
   const [newDesc, setNewDesc] = useState('');
   const [newHours, setNewHours] = useState('0');
   const [newMinutes, setNewMinutes] = useState('25');
+  const [newLearnHours, setNewLearnHours] = useState('0');
+  const [newLearnMinutes, setNewLearnMinutes] = useState('60');
   const [isAiLoading, setIsAiLoading] = useState(false);
 
   // Load from LocalStorage
@@ -94,7 +96,8 @@ const App: React.FC = () => {
     if (!newTitle.trim()) return;
 
     const totalSeconds = (parseInt(newHours) * 3600) + (parseInt(newMinutes) * 60);
-    if (totalSeconds <= 0) return;
+    const learnTotalSeconds = (parseInt(newLearnHours) * 3600) + (parseInt(newLearnMinutes) * 60);
+    if (totalSeconds <= 0 && learnTotalSeconds <= 0) return;
 
     const task: Task = {
       id: crypto.randomUUID(),
@@ -102,7 +105,7 @@ const App: React.FC = () => {
       description: newDesc || 'No description provided.',
       targetDuration: totalSeconds,
       focusElapsed: 0,
-      learnTargetDuration: 3600, // Default 1 hour
+      learnTargetDuration: learnTotalSeconds || 3600,
       learnElapsed: 0,
       activeMode: TaskMode.FOCUS,
       status: TaskStatus.PENDING,
@@ -114,6 +117,8 @@ const App: React.FC = () => {
     setNewDesc('');
     setNewHours('0');
     setNewMinutes('25');
+    setNewLearnHours('0');
+    setNewLearnMinutes('60');
     setIsAdding(false);
   };
 
@@ -344,7 +349,7 @@ const App: React.FC = () => {
               </div>
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Hours</label>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Work Hours</label>
                   <input
                     type="number"
                     min="0"
@@ -355,7 +360,7 @@ const App: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Minutes</label>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Work Minutes</label>
                   <input
                     type="number"
                     min="0"
@@ -363,6 +368,31 @@ const App: React.FC = () => {
                     className="w-full px-5 py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:bg-white focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none font-bold"
                     value={newMinutes}
                     onChange={e => setNewMinutes(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-2">Study Hours</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="24"
+                    className="w-full px-5 py-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 focus:bg-white focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 outline-none font-bold"
+                    value={newLearnHours}
+                    onChange={e => setNewLearnHours(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-2">Study Minutes</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    className="w-full px-5 py-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 focus:bg-white focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 outline-none font-bold"
+                    value={newLearnMinutes}
+                    onChange={e => setNewLearnMinutes(e.target.value)}
                   />
                 </div>
               </div>
